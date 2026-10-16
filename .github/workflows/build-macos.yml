@@ -59,10 +59,11 @@ jobs:
             **/*cli*.zip
           retention-days: 30
 
-      - name: Release (on tags)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Auto Publish Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: "v0.10.0"
+          name: "EffectCraft v0.10.0 cho macOS (Hỗ trợ After Effects)"
           files: |
-            dist/effectcraft-*.dmg
-            dist/effectcraft-cli-*.zip
+            **/*.dmg
+            **/*cli*.zip
