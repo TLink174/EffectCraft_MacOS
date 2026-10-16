@@ -48,10 +48,12 @@ fn app_icon() -> egui::IconData {
 /// Both native JSON projects and Save a Copy As XML projects are openable on launch.
 /// Keep this classification shared by project opening and the subsequent media-import pass.
 fn is_project_file(path: &str) -> bool {
-    std::path::Path::new(path)
-        .extension()
-        .and_then(|ext| ext.to_str())
-        .is_some_and(|ext| ext.eq_ignore_ascii_case("ecproj") || ext.eq_ignore_ascii_case("ecprojx"))
+    std::path::Path::new(path).extension().and_then(|ext| ext.to_str()).is_some_and(|ext| {
+        ext.eq_ignore_ascii_case("ecproj")
+            || ext.eq_ignore_ascii_case("ecprojx")
+            || ext.eq_ignore_ascii_case("aep")
+            || ext.eq_ignore_ascii_case("aepx")
+    })
 }
 
 /// winit 0.30 cannot deliver native Wayland file drops. XWayland can.
@@ -284,7 +286,10 @@ fn main() -> eframe::Result {
                 }));
             }
             app.hooks.pick_open_project = Some(Box::new(|| {
-                rfd::FileDialog::new().add_filter("EffectCraft Project", &["ecproj", "ecprojx"]).pick_file().map(|p| p.to_string_lossy().to_string())
+                rfd::FileDialog::new()
+                    .add_filter("EffectCraft / After Effects Project", &["ecproj", "ecprojx", "aep", "aepx"])
+                    .pick_file()
+                    .map(|p| p.to_string_lossy().to_string())
             }));
             app.hooks.system_theme = appearance::service();
             app.hooks.audio_device = Some(Box::new(audio_out::open));
@@ -526,7 +531,7 @@ mod tests {
     /// A positional .ecprojx is a project file, not an unsupported media import (#528).
     #[test]
     fn launch_classifies_xml_and_json_projects_as_projects() {
-        for path in ["Copy.ecprojx", "/tmp/Scene.ecproj", "C:\\\\work\\\\Shot.ECPROJX"] {
+        for path in ["Copy.ecprojx", "/tmp/Scene.ecproj", "C:\\\\work\\\\Shot.ECPROJX", "test_simple.aep", "tests/test_simple.aepx"] {
             assert!(super::is_project_file(path), "{path}");
         }
         for path in ["scene.ecprojx.png", "scene.mp4", "scene", "copy.ecprojx.bak"] {

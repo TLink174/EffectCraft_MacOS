@@ -213,7 +213,7 @@ pub fn kind_of(path: &str) -> Option<&'static str> {
         Some("data")
     } else if MODEL.contains(&e) {
         Some("model")
-    } else if matches!(e, "ecproj" | "ectemplate" | "json5") {
+    } else if matches!(e, "ecproj" | "ecprojx" | "aep" | "aepx" | "ectemplate" | "json5") {
         Some("project")
     } else {
         None

@@ -40,6 +40,22 @@ fn demo(s: &mut Session, _: &Value) -> Result<Value> {
 pub(crate) fn open(s: &mut Session, p: &Value) -> Result<Value> {
     let path = str_p(p, "path").ok_or_else(|| bad("file.open", "missing `path`"))?;
     let bytes = s.services.read_file(path).map_err(|e| EngineError::Other(format!("cannot read {path}: {e}")))?;
+    if crate::aep::is_aep_bytes(&bytes) || crate::aep::is_aep_path(path) {
+        let stem = std::path::Path::new(path).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Project".into());
+        let mut proj = crate::aep::import_aep_bytes(&bytes, &stem)
+            .map_err(|e| EngineError::Other(format!("{path} is not a project EffectCraft can open: {e}")))?;
+        resolve_relative_footage(&mut proj, path, s.services.as_ref());
+        let first_comp = proj.comps().next().map(|(&id, _)| id);
+        s.replace_project(proj, Some(path.to_string()));
+        if let Some(cid) = first_comp {
+            s.open_comp(cid);
+        }
+        s.note_project_path(path);
+        if s.check_footage_on_open {
+            crate::footage_check::start(s, None, false)?;
+        }
+        return Ok(json!({"path": path, "savedBy": Value::Null, "repaired": Vec::<String>::new()}));
+    }
     let text = String::from_utf8(bytes).map_err(|_| EngineError::Other("not a text project file".into()))?;
     // XML copies (File ▸ Save a Copy As XML…) open like the JSON project.
     let text = if crate::xml_project::is_xml(&text) { crate::xml_project::from_xml(&text).map_err(EngineError::Other)? } else { text };
@@ -80,16 +96,12 @@ pub(crate) fn open(s: &mut Session, p: &Value) -> Result<Value> {
 /// directory is kept.
 fn resolve_relative_footage(p: &mut Project, project_path: &str, services: &dyn crate::Services) {
     use std::path::Path;
-    let Some(dir) = Path::new(project_path).parent().filter(|d| !d.as_os_str().is_empty()) else { return };
-    let beside = |f: &str| dir.join(f).to_string_lossy().to_string();
+    let dir = Path::new(project_path).parent().filter(|d| !d.as_os_str().is_empty());
     for item in p.items.values_mut() {
         let ItemKind::Footage(f) = &mut item.kind else { continue };
-        if f.path.is_empty() || !Path::new(&f.path).is_relative() || services.exists(&f.path) || !services.exists(&beside(&f.path)) {
-            continue;
-        }
-        f.path = beside(&f.path);
-        for frame in f.sequence.iter_mut().filter(|q| Path::new(q.as_str()).is_relative()) {
-            *frame = beside(frame);
+        crate::aep::resolve_footage_path(&mut f.path, dir, services);
+        for frame in &mut f.sequence {
+            crate::aep::resolve_footage_path(frame, dir, services);
         }
     }
 }

@@ -15,12 +15,17 @@ const C: &str = "file.importProject";
 /// Whether `path` names a project EffectCraft imports as a project (not as footage).
 pub(crate) fn is_project_path(path: &str) -> bool {
     let lower = path.to_ascii_lowercase();
-    lower.ends_with(".ecproj") || lower.ends_with(".ecprojx")
+    lower.ends_with(".ecproj") || lower.ends_with(".ecprojx") || crate::aep::is_aep_path(&lower)
 }
 
-/// Read a project file (JSON or its XML copy), as File ▸ Open does.
+/// Read a project file (JSON, its XML copy, or an After Effects `.aep`/`.aepx`), as File ▸ Open does.
 fn read_project(s: &Session, path: &str) -> Result<(Project, Option<String>)> {
     let bytes = s.services.read_file(path).map_err(|e| EngineError::Other(format!("cannot read {path}: {e}")))?;
+    if crate::aep::is_aep_bytes(&bytes) || crate::aep::is_aep_path(path) {
+        let stem = std::path::Path::new(path).file_stem().map(|n| n.to_string_lossy().to_string()).unwrap_or_else(|| "Project".into());
+        let project = crate::aep::import_aep_bytes(&bytes, &stem).map_err(|e| bad(C, format!("{path} is not a project EffectCraft can open: {e}")))?;
+        return Ok((project, None));
+    }
     let text = String::from_utf8(bytes).map_err(|_| bad(C, format!("{path} is not a text project file")))?;
     let text = if crate::xml_project::is_xml(&text) { crate::xml_project::from_xml(&text).map_err(EngineError::Other)? } else { text };
     let project = Project::from_json(&text).map_err(|e| bad(C, format!("{path} is not a project EffectCraft can open: {e}")))?;
@@ -31,32 +36,17 @@ fn read_project(s: &Session, path: &str) -> Result<(Project, Option<String>)> {
 /// there; returns the footage paths that are missing.
 fn resolve_footage(s: &Session, project: &mut Project, dir: &std::path::Path) -> Vec<String> {
     let services = s.services.clone();
-    let resolve = |raw: &mut String| -> bool {
-        if raw.is_empty() || services.exists(raw) {
-            return true;
-        }
-        if std::path::Path::new(raw.as_str()).is_absolute() {
-            return false;
-        }
-        let joined = dir.join(raw.as_str()).to_string_lossy().to_string();
-        if services.exists(&joined) {
-            *raw = joined;
-            true
-        } else {
-            false
-        }
-    };
     let mut missing = vec![];
     for it in project.items.values_mut() {
         if let ItemKind::Footage(f) = &mut it.kind {
             if f.sequence.is_empty() {
-                if !resolve(&mut f.path) {
+                if !crate::aep::resolve_footage_path(&mut f.path, Some(dir), services.as_ref()) {
                     missing.push(f.path.clone());
                 }
             } else {
                 let mut all = true;
                 for frame in &mut f.sequence {
-                    all &= resolve(frame);
+                    all &= crate::aep::resolve_footage_path(frame, Some(dir), services.as_ref());
                 }
                 if !all {
                     missing.push(f.path.clone());

@@ -1,0 +1,68 @@
+name: Build macOS (DMG & CLI)
+
+on:
+  workflow_dispatch:
+    inputs:
+      arch:
+        description: "Architecture to build (universal, aarch64, x86_64)"
+        required: true
+        default: "universal"
+        type: choice
+        options:
+          - universal
+          - aarch64
+          - x86_64
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: macos-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: Build macOS (${{ inputs.arch || 'universal' }})
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ (inputs.arch == 'aarch64' && 'aarch64-apple-darwin') || (inputs.arch == 'x86_64' && 'x86_64-apple-darwin') || 'aarch64-apple-darwin x86_64-apple-darwin' }}
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install packaging dependencies (resvg)
+        run: |
+          cargo install resvg --locked --version 0.48.1
+
+      - name: Package EffectCraft DMG and CLI
+        env:
+          MACOS_SIGN_IDENTITY: "-"
+        run: |
+          chmod +x packaging/macos/package.sh packaging/env.sh
+          ./packaging/macos/package.sh --arch ${{ inputs.arch || 'universal' }}
+
+      - name: Upload macOS Artifacts (DMG and CLI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: EffectCraft-macOS-${{ inputs.arch || 'universal' }}
+          path: |
+            dist/effectcraft-*.dmg
+            dist/effectcraft-cli-*.zip
+          retention-days: 30
+
+      - name: Release (on tags)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/effectcraft-*.dmg
+            dist/effectcraft-cli-*.zip

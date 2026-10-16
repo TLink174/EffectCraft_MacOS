@@ -235,6 +235,10 @@ Issues #41–#47 (all from the Linux AppImage 0.1.1, 5 October): panning the vie
 - `.aep` / `.aepx` import is the largest single barrier to switching. It needs an **owner
   decision** on clean-room scope (whether and how the format may be studied), like the open
   `.prproj` question in `plan/STATUS.md`.
+- **Decision recorded 2026-10-16 (owner):** narrow scope. The layout may be learned only by
+  observing bytes of projects contributors made themselves in After Effects with their own media;
+  no other `.aep` implementation (py-aep included) may be read or ported, nothing inside Adobe
+  bundles or SDKs may be read, and sample projects stay local. See the exception in AGENTS.md §2.
 - A candidate for that decision (#248): [py-aep](https://github.com/forticheprod/py-aep), an MIT
   licensed Python library that reads and writes `.aep` files, reported by a user as working well.
   It can't be linked into the pure-Rust app. It could run as an external converter (`.aep` to

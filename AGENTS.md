@@ -95,6 +95,13 @@ reproduce an image (for example, point lists traced from someone else's icon).
   reference or third-party decoders/encoders while implementing a format, even permissively licensed
   ones (libvpx, libopus, libaom, dav1d, openh264…); spec text and conformance vectors only. Record the
   spec edition used in the crate README.
+- **Exception, After Effects projects (`.aep` / `.aepx`; owner decision 2026-10-16, gaps.md G4):** these
+  have no public specification, so their layout may be learned **only by observing the bytes of
+  project files a contributor made themselves** in After Effects, with media they made. Still
+  forbidden: reading or disassembling anything inside Adobe application bundles or SDKs, reading the
+  source of any other `.aep` reader or writer (py-aep included, whatever its licence), and committing
+  sample projects (keep them local; tests build synthetic bytes in code). Record what each observed
+  field means, and from which sample, in the importer crate's README.
 - ffmpeg/ffprobe may be used only as external test oracles and fixture generators. They are never
   linked, bundled or shipped.
 - Dependencies must use permissive licences: MIT/Apache-2.0/BSD/ISC/Zlib/Unicode/CC0/BSL-1.0, or
