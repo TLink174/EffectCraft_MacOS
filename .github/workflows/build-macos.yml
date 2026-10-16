@@ -55,8 +55,8 @@ jobs:
         with:
           name: EffectCraft-macOS-${{ inputs.arch || 'universal' }}
           path: |
-            dist/effectcraft-*.dmg
-            dist/effectcraft-cli-*.zip
+            **/*.dmg
+            **/*cli*.zip
           retention-days: 30
 
       - name: Release (on tags)
