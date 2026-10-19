@@ -1282,6 +1282,10 @@ pub fn frontend(app: &mut EffectcraftApp, ctx: &egui::Context, id: &str, p: Valu
             app.ui.home_templates = true;
             Value::Null
         }
+        "file.quickExport" => {
+            crate::panels::quick_export::open(app, &p)?;
+            Value::Null
+        }
         "effect.manage" | "anim.browsePresets" => {
             app.show_panel(PanelKind::EffectsPresets);
             Value::Null

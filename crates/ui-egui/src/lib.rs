@@ -99,6 +99,8 @@ pub enum Dialog {
     GradientEditor,
     /// Delete a user template from Home? (`panels::templates`).
     DeleteTemplate,
+    /// File ▸ Export ▸ Quick Export... (`panels::quick_export`).
+    QuickExport,
 }
 
 /// The desktop's light or dark appearance where egui cannot see it (Wayland compositors that send

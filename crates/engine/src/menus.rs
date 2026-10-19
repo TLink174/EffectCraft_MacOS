@@ -549,6 +549,7 @@ File
     ---
     Clear Recent Footage | file.clearRecentFootage
   Export
+    Quick Export... | file.quickExport
     Add to Render Queue | renderQueue.add
     Adobe Premiere Pro Project... | file.exportTimeline
     Adobe After Effects Project Script (.jsx)... | file.exportAeJsx

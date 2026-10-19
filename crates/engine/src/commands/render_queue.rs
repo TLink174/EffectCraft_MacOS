@@ -207,7 +207,7 @@ const FORMATS: &str = "format: h264|hevc|av1|prores|uncompressed|webm|png|jpeg|t
 
 /// Apply Output Module parameters (`template` first). `roi`: the viewer's region of interest
 /// (captured by `crop.useRoi`).
-fn apply_output(om: &mut OutputModule, templates: &RenderTemplates, roi: Option<[f64; 4]>, p: &Value, cmd: &str) -> Result<bool> {
+pub(crate) fn apply_output(om: &mut OutputModule, templates: &RenderTemplates, roi: Option<[f64; 4]>, p: &Value, cmd: &str) -> Result<bool> {
     let mut any = false;
     if let Some(t) = str_p(p, "template") {
         let t = templates.output_module(t).ok_or_else(|| bad(cmd, format!("no Output Module template “{t}”")))?;
@@ -247,8 +247,11 @@ fn apply_output(om: &mut OutputModule, templates: &RenderTemplates, roi: Option<
     if let Some(q) = f_p(p, "quality") {
         om.quality = q.clamp(1.0, 100.0) as u8;
     }
-    if let Some(b) = f_p(p, "bitrate") {
-        om.bitrate_kbps = b.clamp(50.0, 500_000.0) as u32;
+    if let Some(b) = f_p(p, "bitrate").or_else(|| f_p(p, "videoBitrate")) {
+        let kbps = if b > 500_000.0 { b / 1000.0 } else { b };
+        om.bitrate_kbps = kbps.clamp(50.0, 500_000.0) as u32;
+    } else if let Some(mbps) = f_p(p, "bitrateMbps") {
+        om.bitrate_kbps = (mbps * 1000.0).clamp(50.0, 500_000.0) as u32;
     }
     if let Some(b) = b_p(p, "webmBitrate") {
         om.webm_bitrate = b;
@@ -437,6 +440,15 @@ fn apply_codec_options(om: &mut OutputModule, p: &Value, cmd: &str) -> Result<bo
         om.codec.quality = q.clamp(1.0, 100.0) as u8;
     }
     if let Some(b) = f_p(p, "audioBitrate") {
+        om.opus_bitrate_kbps = b.clamp(6.0, 510.0) as u32;
+        om.aac_bitrate_kbps = b.clamp(32.0, 512.0) as u32;
+        any = true;
+    }
+    if let Some(b) = f_p(p, "aacBitrate") {
+        om.aac_bitrate_kbps = b.clamp(32.0, 512.0) as u32;
+        any = true;
+    }
+    if let Some(b) = f_p(p, "opusBitrate") {
         om.opus_bitrate_kbps = b.clamp(6.0, 510.0) as u32;
         any = true;
     }
@@ -795,6 +807,8 @@ fn save_current_preview(s: &mut Session, p: &Value) -> Result<Value> {
     let mut item = RenderQueueItem::new(0, cid);
     item.output = OutputModule::for_format(format);
     item.output.output = path.clone();
+    let templates = s.project.render_templates.clone();
+    apply_output(&mut item.output, &templates, s.state.region_of_interest, p, "render.saveCurrentPreview")?;
     let job = crate::ExportJob {
         project: &s.project,
         footage: s.footage.as_ref(),

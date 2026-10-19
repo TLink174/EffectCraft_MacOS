@@ -161,9 +161,11 @@ fn output_menu(it: &RenderQueueItem, available: &[OutputFormat], templates: &Ren
         }
         OutputFormat::H264 => {
             v.push(("-".into(), Value::Null));
-            for kbps in [2_000, 5_000, 10_000, 15_000, 20_000, 40_000] {
-                v.push((mark(o.bitrate_kbps == kbps, &format!("Bitrate: {} Mbps", kbps / 1000)), json!({"bitrate": kbps})));
+            for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000] {
+                let l = if kbps < 2_000 { format!("Bitrate: {kbps} kbps") } else { format!("Bitrate: {} Mbps", kbps / 1000) };
+                v.push((mark(o.bitrate_kbps == kbps, &l), json!({"bitrate": kbps})));
             }
+            v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "bitrate"})));
         }
         OutputFormat::Hevc | OutputFormat::Av1 => codec_menu(o, &mut v),
         OutputFormat::WebM => {
@@ -178,11 +180,15 @@ fn output_menu(it: &RenderQueueItem, available: &[OutputFormat], templates: &Ren
                 for q in [60u8, 80, 90, 100] {
                     v.push((mark(o.quality == q && !o.webm_bitrate, &format!("Quality: {q}")), json!({"quality": q, "webmBitrate": false})));
                 }
+                v.push(("-".into(), Value::Null));
+                for kbps in [2_000u32, 5_000, 10_000, 20_000] {
+                    v.push((mark(o.webm_bitrate && o.bitrate_kbps == kbps, &format!("Bitrate: {} Mbps", kbps / 1000)), json!({"bitrate": kbps, "webmBitrate": true})));
+                }
                 v.push((mark(o.webm_bitrate, &format!("Target Bitrate ({} kbps)…", o.bitrate_kbps)), json!({"form": "bitrate"})));
                 v.push((mark(o.keyframe_interval > 0, "Key Frame Interval…"), json!({"form": "keyframes"})));
             }
             v.push(("-".into(), Value::Null));
-            for kbps in [24u32, 32, 64, 96, 128, 192, 256] {
+            for kbps in [24u32, 32, 64, 96, 128, 192, 256, 320] {
                 v.push((mark(o.opus_bitrate_kbps == kbps, &tr_args("Opus Bitrate: {} kbps", &[&kbps])), json!({"audioBitrate": kbps})));
             }
             for (a, k) in [(OpusApplication::Audio, "audio"), (OpusApplication::Voip, "voice")] {
@@ -245,7 +251,13 @@ fn output_menu(it: &RenderQueueItem, available: &[OutputFormat], templates: &Ren
         }
         v.push((mark(o.audio_channels == 1, "Audio Channels: Mono"), json!({"audioChannels": "mono"})));
         v.push((mark(o.audio_channels != 1, "Audio Channels: Stereo"), json!({"audioChannels": "stereo"})));
-        if matches!(o.format, OutputFormat::ProRes | OutputFormat::Uncompressed | OutputFormat::Wav | OutputFormat::Aiff) {
+        if matches!(o.format, OutputFormat::H264 | OutputFormat::Hevc | OutputFormat::Av1) {
+            v.push(("-".into(), Value::Null));
+            for kbps in [96u32, 128, 160, 192, 256, 320] {
+                v.push((mark(o.aac_bitrate_kbps == kbps, &format!("AAC Bitrate: {kbps} kbps")), json!({"aacBitrate": kbps})));
+            }
+            v.push((mark(![96, 128, 160, 192, 256, 320].contains(&o.aac_bitrate_kbps), "AAC Bitrate: Custom…"), json!({"form": "aacBitrate"})));
+        } else if matches!(o.format, OutputFormat::ProRes | OutputFormat::Uncompressed | OutputFormat::Wav | OutputFormat::Aiff) {
             for f in [AudioFormat::S16, AudioFormat::S24, AudioFormat::F32] {
                 v.push((mark(o.audio_format == f, &tr_args("Sample Format: {}", &[&(f.label())])), json!({"audioFormat": f.label()})));
             }
@@ -275,11 +287,11 @@ fn codec_menu(o: &effectcraft_engine::project::render_queue::OutputModule, v: &m
         v.push((mark(c.rate_control == r, &tr_args("Rate Control: {}", &[&(r.label())])), json!({"rateControl": format!("{r:?}").to_ascii_lowercase()})));
     }
     if c.rate_control == RateControlMode::Bitrate {
-        for kbps in [1_000u32, 2_000, 5_000, 10_000, 20_000, 40_000] {
+        for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000] {
             let l = if kbps < 2_000 { format!("Bitrate: {kbps} kbps") } else { format!("Bitrate: {} Mbps", kbps / 1000) };
             v.push((mark(o.bitrate_kbps == kbps, &l), json!({"bitrate": kbps})));
         }
-        v.push((mark(false, "Bitrate: Custom…"), json!({"form": "codecBitrate"})));
+        v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "codecBitrate"})));
     } else {
         for q in [40u8, 60, 70, 80, 90, 100] {
             v.push((mark(c.quality == q, &format!("Quality: {q}")), json!({"quality": q})));
@@ -351,19 +363,34 @@ fn open_menu_form(app: &mut EffectcraftApp, it: &RenderQueueItem, form: &str) {
             json!({"item": id}),
             vec![Field::num("resizeWidth", "Width", o.resize.width as f64), Field::num("resizeHeight", "Height", o.resize.height as f64)],
         ),
-        "bitrate" => open(
-            app,
-            "WebM Target Bitrate",
-            "renderQueue.setOutputModule",
-            json!({"item": id, "webmBitrate": true}),
-            vec![Field::num("bitrate", "Bitrate (kbps)", o.bitrate_kbps as f64)],
-        ),
+        "bitrate" => {
+            let is_webm = o.format == OutputFormat::WebM;
+            let title = if is_webm { "WebM Target Bitrate" } else { "Target Video Bitrate" };
+            let mut params = json!({"item": id});
+            if is_webm {
+                params["webmBitrate"] = json!(true);
+            }
+            open(
+                app,
+                title,
+                "renderQueue.setOutputModule",
+                params,
+                vec![Field::num("bitrate", "Bitrate (kbps, e.g. 8000 = 8 Mbps)", o.bitrate_kbps as f64)],
+            )
+        }
         "codecBitrate" => open(
             app,
-            "Target Bitrate",
+            "Target Video Bitrate",
             "renderQueue.setOutputModule",
             json!({"item": id, "rateControl": "bitrate"}),
-            vec![Field::num("bitrate", "Bitrate (kbps)", o.bitrate_kbps as f64)],
+            vec![Field::num("bitrate", "Bitrate (kbps, e.g. 10000 = 10 Mbps)", o.bitrate_kbps as f64)],
+        ),
+        "aacBitrate" => open(
+            app,
+            "AAC Audio Bitrate",
+            "renderQueue.setOutputModule",
+            json!({"item": id}),
+            vec![Field::num("aacBitrate", "Bitrate (kbps, 64–512)", o.aac_bitrate_kbps as f64)],
         ),
         "keyframes" => open(
             app,

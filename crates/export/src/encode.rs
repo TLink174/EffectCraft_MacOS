@@ -298,7 +298,9 @@ pub(crate) async fn movie(job: &Cx<'_>, comp: &Comp, w: u32, h: u32, st: &mut St
     let mut audio = None;
     if with_audio {
         let (a, entry, start) = if brand == Brand::Mp4 {
-            let e = filmcraft_aac::Encoder::new(filmcraft_aac::EncoderConfig::cbr(sr, chans as usize, 160_000 * chans)).map_err(enc)?;
+            let kbps = job.output.aac_bitrate_kbps.clamp(32, 512);
+            let aac_bps = kbps.saturating_mul(1000);
+            let e = filmcraft_aac::Encoder::new(filmcraft_aac::EncoderConfig::cbr(sr, chans as usize, aac_bps)).map_err(enc)?;
             let entry = SampleEntry::aac(e.audio_specific_config(), chans, sr);
             let priming = e.priming_samples() as i64;
             (Audio::Aac(Box::new(e)), entry, Some(priming))

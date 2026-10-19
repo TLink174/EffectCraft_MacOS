@@ -4,7 +4,7 @@ use effectcraft_color::Label;
 use effectcraft_project::{FootageKind, ItemId, ItemKind, LayerSource, Project};
 use serde_json::{Value, json};
 
-use super::{CommandSpec, always, b_p, bad, str_p};
+use super::{CommandSpec, always, b_p, bad, comp_id, has_comp, str_p};
 use crate::sequence::{SequenceOptions, Source};
 use crate::{EngineError, Result, Session, cmd};
 
@@ -750,6 +750,41 @@ fn export_ae_jsx(s: &mut Session, p: &Value) -> Result<Value> {
     Ok(json!({"path": path, "bytes": jsx.len()}))
 }
 
+fn quick_export_cmd(s: &mut Session, p: &Value) -> Result<Value> {
+    use effectcraft_project::render_queue::{OutputFormat, OutputModule, RenderQueueItem};
+
+    let path = str_p(p, "path").or_else(|| str_p(p, "output")).map(str::to_string);
+    if let Some(path) = path {
+        let cid = comp_id(s, p)?;
+        let format = OutputFormat::from_path(&path).unwrap_or(OutputFormat::H264);
+        let exporter = s.exporter.clone().ok_or_else(|| EngineError::Other("export is not available in this build".into()))?;
+        if !exporter.formats().contains(&format) {
+            return Err(EngineError::Other(format!("{} export is not available", format.label())));
+        }
+        let mut item = RenderQueueItem::new(0, cid);
+        item.output = OutputModule::for_format(format);
+        item.output.output = path.clone();
+        let templates = s.project.render_templates.clone();
+        crate::commands::render_queue::apply_output(&mut item.output, &templates, s.state.region_of_interest, p, "file.quickExport")?;
+        let job = crate::ExportJob {
+            project: &s.project,
+            footage: s.footage.as_ref(),
+            expr: s.expr.as_deref(),
+            accel: s.accel.as_deref(),
+            item: &item,
+            path: &path,
+            storage: s.storage_quota.as_deref(),
+            label: "Quick Export".into(),
+            nested_switches: s.prefs.general.switches_affect_nested_comps,
+        };
+        let r = exporter.export(&job, &mut |_, _| true).map_err(EngineError::Other)?;
+        s.toast(format!("Quick Export finished: {}", r.path));
+        return Ok(serde_json::to_value(&r).unwrap_or_default());
+    }
+    s.events.push(crate::Event::Frontend { command: "file.quickExport".into(), params: p.clone() });
+    Ok(json!({"dialog": "file.quickExport"}))
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         cmd!("file.newProject", "New Project", ["File", "New"], Some("Cmd+Alt+N"), "{}", always, new_project),
@@ -759,6 +794,15 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("file.saveAs", "Save As...", ["File", "Save As"], Some("Cmd+Shift+S"), "{path}", always, save_as),
         cmd!("file.incrementAndSave", "Increment and Save", ["File"], Some("Cmd+Alt+Shift+S"), "{}", has_path, increment_save),
         cmd!("file.revert", "Revert", ["File"], None, "{}", has_path, revert),
+        cmd!(
+            "file.quickExport",
+            "Quick Export...",
+            ["File", "Export"],
+            None,
+            "{comp?: id, path?: string, preset?: string, format?: h264|hevc|webm|prores, videoBitrate?: mbps, aacBitrate?: kbps}",
+            has_comp,
+            quick_export_cmd
+        ),
         cmd!(
             "file.exportAeJsx",
             "Adobe After Effects Project Script (.jsx)...",

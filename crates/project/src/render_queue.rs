@@ -1052,6 +1052,8 @@ pub struct OutputModule {
     pub codec: VideoCodecOptions,
     /// WebM video codec.
     pub webm_codec: WebmVideoCodec,
+    /// AAC audio bitrate (stereo total), kbit/s.
+    pub aac_bitrate_kbps: u32,
     /// WebM Opus audio bitrate (stereo total), kbit/s.
     pub opus_bitrate_kbps: u32,
     pub opus_application: OpusApplication,
@@ -1082,6 +1084,7 @@ impl Default for OutputModule {
             gif_loop: true,
             codec: VideoCodecOptions::default(),
             webm_codec: WebmVideoCodec::Vp9,
+            aac_bitrate_kbps: 192,
             opus_bitrate_kbps: 192,
             opus_application: OpusApplication::Audio,
             include_project_link: true,
@@ -1145,6 +1148,11 @@ impl OutputModule {
             v.push(("Resize", format!("{}×{} ({:?} quality{})", r.width, r.height, r.quality, if r.lock_aspect { ", aspect locked" } else { "" })));
         }
         if self.format.supports_audio() {
+            let codec_label = match self.format {
+                OutputFormat::H264 | OutputFormat::Hevc | OutputFormat::Av1 => format!("AAC ({} kbps)", self.aac_bitrate_kbps),
+                OutputFormat::WebM => format!("Opus ({} kbps)", self.opus_bitrate_kbps),
+                _ => self.audio_format.label().to_string(),
+            };
             v.push((
                 "Audio Output",
                 format!(
@@ -1152,7 +1160,7 @@ impl OutputModule {
                     self.audio,
                     self.audio_sample_rate,
                     if self.audio_channels == 1 { "Mono" } else { "Stereo" },
-                    self.audio_format.label()
+                    codec_label
                 ),
             ));
         }
@@ -1697,6 +1705,6 @@ mod tests {
         assert_eq!(h.summary(), "HEVC (H.265) · Main · 10000 kbps · Level Auto · Key every auto");
         // Older projects (no codec fields) load with the defaults.
         let old: OutputModule = serde_json::from_str(r#"{"format":"H264","bitrate_kbps":5000}"#).unwrap();
-        assert_eq!((old.codec, old.webm_codec, old.opus_bitrate_kbps), (VideoCodecOptions::default(), WebmVideoCodec::Vp9, 192));
+        assert_eq!((old.codec, old.webm_codec, old.opus_bitrate_kbps, old.aac_bitrate_kbps), (VideoCodecOptions::default(), WebmVideoCodec::Vp9, 192, 192));
     }
 }
