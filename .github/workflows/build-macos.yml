@@ -13,6 +13,8 @@ on:
           - aarch64
           - x86_64
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -61,9 +63,10 @@ jobs:
 
       - name: Auto Publish Release
         uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: "v0.10.0"
-          name: "EffectCraft v0.10.0 cho macOS (Hỗ trợ After Effects)"
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.10.1' }}
+          name: "EffectCraft ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v0.10.1' }} cho macOS (Hỗ trợ After Effects)"
           files: |
             **/*.dmg
             **/*cli*.zip
