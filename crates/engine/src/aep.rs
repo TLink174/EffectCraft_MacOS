@@ -225,6 +225,16 @@ pub fn resolve_footage_path(raw: &mut String, dir: Option<&std::path::Path>, ser
                     }
                 }
             }
+
+            // Check common footage subdirectories next to project file
+            const COMMON_MEDIA_DIRS: &[&str] = &["Footage", "(Footage)", "Assets", "Media", "Source", "01-INPUT", "02-SOURCE", "Video", "Audio"];
+            for sub in COMMON_MEDIA_DIRS {
+                let sub_cand = dir.join(sub).join(&name).to_string_lossy().to_string();
+                if let Some(found) = check(&sub_cand) {
+                    *raw = found;
+                    return true;
+                }
+            }
         }
     }
 

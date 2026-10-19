@@ -864,7 +864,7 @@ fn replace_footage(s: &mut Session, p: &Value) -> Result<Value> {
     let relinked: Vec<u64> = moved.iter().map(|(id, _)| id.0).collect();
     s.edit("Replace Footage", None, |proj, _| {
         let it = proj.item_mut(item).ok_or_else(|| bad("file.replaceFootage", "no such item"))?;
-        it.name = name;
+        it.name = name.clone();
         it.kind = ItemKind::Footage(f);
         retarget_layers(proj, item, |_| LayerSource::Footage { item });
         for (id, nf) in moved {
@@ -874,10 +874,15 @@ fn replace_footage(s: &mut Session, p: &Value) -> Result<Value> {
         }
         Ok(())
     })?;
-    if relinked.is_empty() {
-        return Ok(Value::Null);
+    s.events.push(crate::Event::PurgeCaches);
+    if !relinked.is_empty() {
+        let _ = crate::footage_check::start(s, Some(relinked.iter().map(|&id| ItemId(id)).collect()), false);
     }
-    s.toast(format!("Also relinked {} other missing footage item(s)", relinked.len()));
+    s.toast(if relinked.is_empty() {
+        format!("Replaced footage: {name}")
+    } else {
+        format!("Replaced {name} and automatically relinked {} other missing footage item(s)", relinked.len())
+    });
     Ok(json!({"relinked": relinked}))
 }
 

@@ -54,7 +54,7 @@ pub fn start(s: &mut Session, items: Option<Vec<ItemId>>, wait: bool) -> crate::
     let services = s.services.clone();
     let importer = s.importer.clone();
     let rate = s.sequence_rate();
-    let project_dir = s.path.as_deref().and_then(crate::commands::relink_moved::project_dir);
+    let project_dir = s.path.as_deref().or_else(|| s.prefs.recent_projects.first().map(String::as_str)).and_then(crate::commands::relink_moved::project_dir);
     let n = jobs.len();
     s.spawn_task("footageCheck", format!("Checking footage ({n} items)"), wait, move |ctl| {
         let mut found: Vec<(ItemId, Found)> = Vec::with_capacity(jobs.len());
