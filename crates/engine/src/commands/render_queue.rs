@@ -248,10 +248,10 @@ pub(crate) fn apply_output(om: &mut OutputModule, templates: &RenderTemplates, r
         om.quality = q.clamp(1.0, 100.0) as u8;
     }
     if let Some(b) = f_p(p, "bitrate").or_else(|| f_p(p, "videoBitrate")) {
-        let kbps = if b > 500_000.0 { b / 1000.0 } else { b };
-        om.bitrate_kbps = kbps.clamp(50.0, 500_000.0) as u32;
+        let kbps = if b >= 5_000_000.0 { b / 1000.0 } else { b };
+        om.bitrate_kbps = kbps.clamp(50.0, 1_500_000.0) as u32;
     } else if let Some(mbps) = f_p(p, "bitrateMbps") {
-        om.bitrate_kbps = (mbps * 1000.0).clamp(50.0, 500_000.0) as u32;
+        om.bitrate_kbps = (mbps * 1000.0).clamp(50.0, 1_500_000.0) as u32;
     }
     if let Some(b) = b_p(p, "webmBitrate") {
         om.webm_bitrate = b;

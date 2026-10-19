@@ -161,11 +161,11 @@ fn output_menu(it: &RenderQueueItem, available: &[OutputFormat], templates: &Ren
         }
         OutputFormat::H264 => {
             v.push(("-".into(), Value::Null));
-            for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000] {
+            for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000, 100_000, 150_000, 200_000, 300_000, 500_000] {
                 let l = if kbps < 2_000 { format!("Bitrate: {kbps} kbps") } else { format!("Bitrate: {} Mbps", kbps / 1000) };
                 v.push((mark(o.bitrate_kbps == kbps, &l), json!({"bitrate": kbps})));
             }
-            v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "bitrate"})));
+            v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000, 100_000, 150_000, 200_000, 300_000, 500_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "bitrate"})));
         }
         OutputFormat::Hevc | OutputFormat::Av1 => codec_menu(o, &mut v),
         OutputFormat::WebM => {
@@ -181,7 +181,7 @@ fn output_menu(it: &RenderQueueItem, available: &[OutputFormat], templates: &Ren
                     v.push((mark(o.quality == q && !o.webm_bitrate, &format!("Quality: {q}")), json!({"quality": q, "webmBitrate": false})));
                 }
                 v.push(("-".into(), Value::Null));
-                for kbps in [2_000u32, 5_000, 10_000, 20_000] {
+                for kbps in [2_000u32, 5_000, 10_000, 20_000, 40_000, 80_000, 150_000, 300_000] {
                     v.push((mark(o.webm_bitrate && o.bitrate_kbps == kbps, &format!("Bitrate: {} Mbps", kbps / 1000)), json!({"bitrate": kbps, "webmBitrate": true})));
                 }
                 v.push((mark(o.webm_bitrate, &format!("Target Bitrate ({} kbps)…", o.bitrate_kbps)), json!({"form": "bitrate"})));
@@ -287,11 +287,11 @@ fn codec_menu(o: &effectcraft_engine::project::render_queue::OutputModule, v: &m
         v.push((mark(c.rate_control == r, &tr_args("Rate Control: {}", &[&(r.label())])), json!({"rateControl": format!("{r:?}").to_ascii_lowercase()})));
     }
     if c.rate_control == RateControlMode::Bitrate {
-        for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000] {
+        for kbps in [1_000u32, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000, 100_000, 150_000, 200_000, 300_000, 500_000] {
             let l = if kbps < 2_000 { format!("Bitrate: {kbps} kbps") } else { format!("Bitrate: {} Mbps", kbps / 1000) };
             v.push((mark(o.bitrate_kbps == kbps, &l), json!({"bitrate": kbps})));
         }
-        v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "codecBitrate"})));
+        v.push((mark(![1_000, 2_000, 4_000, 6_000, 8_000, 10_000, 15_000, 20_000, 30_000, 40_000, 50_000, 80_000, 100_000, 150_000, 200_000, 300_000, 500_000].contains(&o.bitrate_kbps), "Bitrate: Custom…"), json!({"form": "codecBitrate"})));
     } else {
         for q in [40u8, 60, 70, 80, 90, 100] {
             v.push((mark(c.quality == q, &format!("Quality: {q}")), json!({"quality": q})));
@@ -375,7 +375,7 @@ fn open_menu_form(app: &mut EffectcraftApp, it: &RenderQueueItem, form: &str) {
                 title,
                 "renderQueue.setOutputModule",
                 params,
-                vec![Field::num("bitrate", "Bitrate (kbps, e.g. 8000 = 8 Mbps)", o.bitrate_kbps as f64)],
+                vec![Field::num("bitrate", "Bitrate (kbps, e.g. 50000 = 50 Mbps, up to 1,500,000 kbps)", o.bitrate_kbps as f64)],
             )
         }
         "codecBitrate" => open(
@@ -383,7 +383,7 @@ fn open_menu_form(app: &mut EffectcraftApp, it: &RenderQueueItem, form: &str) {
             "Target Video Bitrate",
             "renderQueue.setOutputModule",
             json!({"item": id, "rateControl": "bitrate"}),
-            vec![Field::num("bitrate", "Bitrate (kbps, e.g. 10000 = 10 Mbps)", o.bitrate_kbps as f64)],
+            vec![Field::num("bitrate", "Bitrate (kbps, e.g. 50000 = 50 Mbps, up to 1,500,000 kbps)", o.bitrate_kbps as f64)],
         ),
         "aacBitrate" => open(
             app,

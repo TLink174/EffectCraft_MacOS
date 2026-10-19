@@ -134,7 +134,11 @@ pub fn open(app: &mut EffectcraftApp, params: &serde_json::Value) -> Result<(), 
     }
 
     if let Some(v_bps) = params.get("videoBitrate").and_then(serde_json::Value::as_f64) {
-        draft.video_bitrate_mbps = (v_bps / 1_000_000.0).clamp(0.1, 500.0);
+        let mbps = if v_bps >= 5_000_000.0 { v_bps / 1_000_000.0 } else if v_bps >= 5_000.0 { v_bps / 1000.0 } else { v_bps };
+        draft.video_bitrate_mbps = mbps.clamp(0.1, 1500.0);
+        draft.preset_idx = PRESETS.len() - 1;
+    } else if let Some(mbps) = params.get("bitrateMbps").and_then(serde_json::Value::as_f64) {
+        draft.video_bitrate_mbps = mbps.clamp(0.1, 1500.0);
         draft.preset_idx = PRESETS.len() - 1;
     }
 
@@ -317,21 +321,40 @@ pub fn show(app: &mut EffectcraftApp, ctx: &egui::Context, t: &Tokens) {
 
             // 4. Video Bitrate Controls (for H.264, HEVC, AV1, WebM)
             if draft.format.has_codec_options() || matches!(draft.format, OutputFormat::H264 | OutputFormat::WebM) {
+                let max_slider_mbps = match draft.format {
+                    OutputFormat::Hevc | OutputFormat::Av1 => 800.0,
+                    OutputFormat::ProRes => 1000.0,
+                    OutputFormat::WebM => 500.0,
+                    OutputFormat::H264 => 300.0,
+                    _ => 500.0,
+                };
                 ui.group(|ui| {
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(tr("Target Video Bitrate:")).strong());
                         ui.label(format!("{:.1} Mbps ({} kbps)", draft.video_bitrate_mbps, (draft.video_bitrate_mbps * 1000.0) as u64));
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            ui.label(egui::RichText::new(format!("Max: {max_slider_mbps:.0} Mbps")).small().color(t.text_dim));
+                        });
                     });
 
                     ui.horizontal(|ui| {
                         let prev_v = draft.video_bitrate_mbps;
                         let slider = ui.add(
-                            egui::Slider::new(&mut draft.video_bitrate_mbps, 0.5..=80.0)
+                            egui::Slider::new(&mut draft.video_bitrate_mbps, 0.5..=max_slider_mbps)
                                 .step_by(0.5)
                                 .suffix(" Mbps")
                                 .logarithmic(true),
                         );
                         auto.add("dialog.quickExport.videoBitrate", slider.rect, "Video Bitrate Slider");
+
+                        let num_input = ui.add(
+                            egui::DragValue::new(&mut draft.video_bitrate_mbps)
+                                .range(0.1..=1500.0)
+                                .speed(0.5)
+                                .suffix("M"),
+                        );
+                        auto.add("dialog.quickExport.videoBitrateNum", num_input.rect, "Video Bitrate Number Input");
+
                         if draft.video_bitrate_mbps != prev_v {
                             draft.preset_idx = PRESETS.len() - 1;
                         }
@@ -340,12 +363,20 @@ pub fn show(app: &mut EffectcraftApp, ctx: &egui::Context, t: &Tokens) {
                     // Quick Chips
                     ui.horizontal(|ui| {
                         ui.label(egui::RichText::new(tr("Quick Targets:")).small().color(t.text_dim));
-                        for target in [2.0, 4.0, 8.0, 15.0, 25.0, 50.0] {
-                            let label = format!("{target:.0}M");
-                            if ui.button(&label).clicked() {
-                                draft.video_bitrate_mbps = target;
-                                draft.preset_idx = PRESETS.len() - 1;
+                        for target in [4.0, 8.0, 15.0, 25.0, 50.0, 100.0, 200.0] {
+                            if target <= max_slider_mbps {
+                                let label = format!("{target:.0}M");
+                                if ui.button(&label).clicked() {
+                                    draft.video_bitrate_mbps = target;
+                                    draft.preset_idx = PRESETS.len() - 1;
+                                }
                             }
+                        }
+                        let max_btn = ui.add(egui::Button::new(egui::RichText::new("Max").strong().color(Color32::WHITE)).fill(t.accent));
+                        auto.add("dialog.quickExport.maxBitrate", max_btn.rect, "Max Bitrate Button");
+                        if max_btn.clicked() {
+                            draft.video_bitrate_mbps = max_slider_mbps;
+                            draft.preset_idx = PRESETS.len() - 1;
                         }
                     });
                 });
@@ -507,6 +538,8 @@ mod tests {
             "dialog.quickExport.path",
             "dialog.quickExport.browse",
             "dialog.quickExport.videoBitrate",
+            "dialog.quickExport.videoBitrateNum",
+            "dialog.quickExport.maxBitrate",
             "dialog.quickExport.export",
             "dialog.quickExport.sendToQueue",
             "dialog.quickExport.cancel",
@@ -533,6 +566,28 @@ mod tests {
         let item = &q[0];
         assert_eq!(item.output.bitrate_kbps, 8_500);
         assert_eq!(item.output.aac_bitrate_kbps, 256);
+    }
+
+    #[test]
+    fn quick_export_supports_max_render_bitrates() {
+        let (mut app, _) = test_app();
+        open(&mut app, &json!({
+            "format": "hevc",
+            "videoBitrate": 800_000_000.0,
+            "aacBitrate": 320,
+            "path": "D:/test_max_export.mp4"
+        })).unwrap();
+
+        assert_eq!(app.dialog_state.quick_export.video_bitrate_mbps, 800.0);
+        let cid = app.session.active_comp_id().unwrap();
+        let params = build_export_params(&app.dialog_state.quick_export, cid);
+        app.session.execute("renderQueue.add", params).unwrap();
+
+        let q = &app.session.project.render_queue;
+        assert_eq!(q.len(), 1);
+        let item = &q[0];
+        assert_eq!(item.output.bitrate_kbps, 800_000);
+        assert_eq!(item.output.aac_bitrate_kbps, 320);
     }
 }
 
