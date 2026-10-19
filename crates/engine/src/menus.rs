@@ -551,6 +551,7 @@ File
   Export
     Add to Render Queue | renderQueue.add
     Adobe Premiere Pro Project... | file.exportTimeline
+    Adobe After Effects Project Script (.jsx)... | file.exportAeJsx
     Lottie JSON... | file.exportLottie
     Essential Graphics Template... | essential.exportTemplate
   ---
