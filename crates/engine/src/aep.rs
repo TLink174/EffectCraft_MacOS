@@ -3691,6 +3691,12 @@ mod tests {
         session.services = Arc::new(Mem(Mutex::new(files)));
 
         session.execute("file.open", json!({"path": "tests/test_simple.aepx"})).expect("file.open tests/test_simple.aepx");
+        // Verify protection: s.path must be None (Untitled) so original AEP is never overwritten!
+        assert_eq!(session.path, None);
+        assert!(session.execute("file.save", json!({})).is_err());
+        assert!(session.execute("file.saveAs", json!({"path": "tests/test_simple.aepx"})).is_err());
+        assert!(session.execute("file.saveAs", json!({"path": "tests/my_test.aep"})).is_err());
+
         let (_, comp) = session.project.comps().next().expect("Comp 1 opened");
         assert_eq!((comp.width, comp.height), (1080, 1920));
         assert_eq!(comp.layers.len(), 1);

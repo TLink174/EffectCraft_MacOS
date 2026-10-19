@@ -16,6 +16,7 @@ pub mod camera_track;
 pub mod commands;
 pub mod config;
 pub mod demo;
+pub mod export_ae_jsx;
 pub mod footage_check;
 pub mod footage_reload;
 pub mod guard;

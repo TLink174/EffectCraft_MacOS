@@ -46,7 +46,8 @@ pub(crate) fn open(s: &mut Session, p: &Value) -> Result<Value> {
             .map_err(|e| EngineError::Other(format!("{path} is not a project EffectCraft can open: {e}")))?;
         resolve_relative_footage(&mut proj, path, s.services.as_ref());
         let first_comp = proj.comps().next().map(|(&id, _)| id);
-        s.replace_project(proj, Some(path.to_string()));
+        // Treat imported AEP as an Untitled project (s.path = None) so it cannot overwrite the original .aep file.
+        s.replace_project(proj, None);
         if let Some(cid) = first_comp {
             s.open_comp(cid);
         }
@@ -115,6 +116,9 @@ pub(crate) fn file_text(s: &Session, path: &str) -> Result<String> {
 }
 
 fn save_to(s: &mut Session, path: &str) -> Result<Value> {
+    if crate::aep::is_aep_path(path) {
+        return Err(bad("file.save", "Cannot overwrite an After Effects project file (.aep / .aepx). Please save as an EffectCraft project (.ecproj)."));
+    }
     let json = file_text(s, path)?;
     s.services.write_file(path, json.as_bytes()).map_err(|e| EngineError::Other(format!("cannot write {path}: {e}")))?;
     s.path = Some(path.to_string());
@@ -737,6 +741,15 @@ fn cycle_depth(s: &mut Session, _: &Value) -> Result<Value> {
     Ok(json!(s.project.settings.bit_depth.label()))
 }
 
+fn export_ae_jsx(s: &mut Session, p: &Value) -> Result<Value> {
+    let path = str_p(p, "path").ok_or_else(|| bad("file.exportAeJsx", "missing `path` (.jsx)"))?.to_string();
+    let cid = p.get("comp").and_then(Value::as_u64).map(ItemId);
+    let jsx = crate::export_ae_jsx::export_project_to_jsx(&s.project, cid);
+    s.services.write_file(&path, jsx.as_bytes()).map_err(|e| EngineError::Other(format!("cannot write {path}: {e}")))?;
+    s.toast(format!("Exported After Effects Script to {path}"));
+    Ok(json!({"path": path, "bytes": jsx.len()}))
+}
+
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         cmd!("file.newProject", "New Project", ["File", "New"], Some("Cmd+Alt+N"), "{}", always, new_project),
@@ -746,6 +759,15 @@ pub fn specs() -> Vec<CommandSpec> {
         cmd!("file.saveAs", "Save As...", ["File", "Save As"], Some("Cmd+Shift+S"), "{path}", always, save_as),
         cmd!("file.incrementAndSave", "Increment and Save", ["File"], Some("Cmd+Alt+Shift+S"), "{}", has_path, increment_save),
         cmd!("file.revert", "Revert", ["File"], None, "{}", has_path, revert),
+        cmd!(
+            "file.exportAeJsx",
+            "Adobe After Effects Project Script (.jsx)...",
+            ["File", "Export"],
+            None,
+            "{comp?: id, path (.jsx)} — exports project compositions, layers, footages, and keyframes to an After Effects ExtendScript file runnable in AE via File -> Scripts -> Run Script File...",
+            always,
+            export_ae_jsx
+        ),
         cmd!(
             "file.import",
             "File...",
